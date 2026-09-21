@@ -42,9 +42,17 @@ export default function ScannerPage() {
 
   const fetchTokens = async () => {
     setLoading(true);
-    addLog('info', 'Mengirim permintaan scan ke API...');
+    addLog('info', 'Mengirim permintaan pemindaian baru ke API...');
     try {
-      const res = await fetch(`/api/scanner?t=${Date.now()}`, { cache: 'no-store' });
+      // Menambahkan query param timestamp ?t= untuk bypass cache browser
+      const res = await fetch(`/api/scanner?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-cache',
+        },
+      });
+
       const data = await res.json();
 
       if (data.updatedAt) {
@@ -99,13 +107,13 @@ export default function ScannerPage() {
   };
 
   return (
-    <div className="p-6 text-white w-full max-w-6xl space-y-6">
+    <div className="p-6 text-white w-full max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-blue-400">Token Scanner</h1>
+          <h1 className="text-2xl font-bold text-blue-400">Token Scanner Solana</h1>
           <p className="text-xs text-gray-400 mt-1">
-            Pemindaian otomatis token & pergerakan pasar Solana
+            Pemindaian otomatis token & pergerakan pasar Solana secara real-time
           </p>
         </div>
         <button
@@ -125,7 +133,7 @@ export default function ScannerPage() {
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
               <span className="text-xs text-blue-300 font-mono">
-                {loading ? 'Mengambil data pasar...' : `Scan ulang dalam ${countdown}s`}
+                {loading ? 'Mengambil data pasar terbaru...' : `Scan ulang dalam ${countdown}s`}
               </span>
             </div>
             <span className="text-xs text-gray-300 font-mono">
@@ -155,7 +163,10 @@ export default function ScannerPage() {
                   const addr = token.address || '';
                   return (
                     <tr key={idx} className="hover:bg-gray-800/30 transition">
-                      <td className="py-3 font-semibold text-blue-300">{token.symbol}</td>
+                      <td className="py-3 font-semibold text-blue-300">
+                        <div>{token.symbol}</div>
+                        <div className="text-[10px] text-gray-500 font-normal">{token.name}</div>
+                      </td>
                       <td className="py-3 font-mono text-xs">
                         <span className="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">
                           {token.age}
