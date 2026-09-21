@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-// PENTING: Paksa Vercel/Next.js agar API dijalankan REAL-TIME & TANPA CACHE
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -28,6 +27,8 @@ export async function GET() {
     second: '2-digit',
   });
 
+  console.log(`[${timeNow}] [SCANNER API] Memulai pemindaian...`);
+
   try {
     const res = await fetch('https://api.dexscreener.com/token-profiles/latest/v1', {
       cache: 'no-store',
@@ -38,7 +39,13 @@ export async function GET() {
     });
 
     if (!res.ok) {
-      throw new Error(`DexScreener API Status: ${res.status}`);
+      console.error(`[${timeNow}] [SCANNER API] DexScreener Profiles Error: HTTP ${res.status}`);
+      return NextResponse.json({
+        success: false,
+        updatedAt: timeNow,
+        error: `DexScreener Profiles Error HTTP ${res.status}`,
+        tokens: [],
+      });
     }
 
     const profiles = await res.json();
@@ -47,19 +54,32 @@ export async function GET() {
       ? profiles.filter((p: any) => p.chainId === 'solana' && !EXCLUDED_ADDRESSES.includes(p.tokenAddress))
       : [];
 
+    console.log(`[${timeNow}] [SCANNER API] Ditemukan ${solanaProfiles.length} profil token Solana.`);
+
     const addresses = solanaProfiles.slice(0, 15).map((p: any) => p.tokenAddress).join(',');
 
     if (!addresses) {
-      return NextResponse.json({ success: true, updatedAt: timeNow, tokens: [] });
+      return NextResponse.json({
+        success: true,
+        updatedAt: timeNow,
+        tokens: [],
+        message: 'Tidak ada token Solana baru dari endpoint profil.',
+      });
     }
 
     const pairsRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addresses}`, {
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache' },
     });
-    
+
     if (!pairsRes.ok) {
-      throw new Error(`DexScreener Pairs Status: ${pairsRes.status}`);
+      console.error(`[${timeNow}] [SCANNER API] DexScreener Pairs Error: HTTP ${pairsRes.status}`);
+      return NextResponse.json({
+        success: false,
+        updatedAt: timeNow,
+        error: `DexScreener Pairs Error HTTP ${pairsRes.status}`,
+        tokens: [],
+      });
     }
 
     const pairsData = await pairsRes.json();
@@ -77,16 +97,20 @@ export async function GET() {
       };
     });
 
+    console.log(`[${timeNow}] [SCANNER API] Sukses memproses ${tokens.length} token.`);
+
     return NextResponse.json({
       success: true,
       updatedAt: timeNow,
+      tokensCount: tokens.length,
       tokens,
     });
   } catch (error: any) {
+    console.error(`[${timeNow}] [SCANNER API] Exception error:`, error.message);
     return NextResponse.json({
       success: false,
       updatedAt: timeNow,
-      error: error.message || 'Gagal terhubung ke pasar',
+      error: error.message || 'Koneksi terputus',
       tokens: [],
     });
   }
