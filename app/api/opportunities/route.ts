@@ -1,41 +1,49 @@
 import { NextResponse } from 'next/server';
 
+// Wajib: Matikan cache Vercel agar data tidak tertahan
+export const revalidate = 0;
+
 const EXCLUDED_TOKENS = [
-  'So11111111111111111111111111111111111111112', // Native SOL
+  'So11111111111111111111111111111111111111112', // SOL
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
   'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
 ];
 
 export async function GET() {
   try {
-    const response = await fetch('https://api.dexscreener.com/latest/dex/search?q=solana', {
-      headers: { 'Cache-Control': 'no-cache' },
+    const resProfiles = await fetch('https://api.dexscreener.com/token-profiles/latest/v1', {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store' },
     });
 
-    if (!response.ok) throw new Error('Gagal memuat peluang');
+    if (!resProfiles.ok) throw new Error('Gagal memuat profil');
 
-    const data = await response.json();
-    const pairs = data.pairs || [];
+    const profiles = await resProfiles.json();
+    const solanaProfiles = Array.isArray(profiles)
+      ? profiles.filter((p: any) => p.chainId === 'solana' && !EXCLUDED_TOKENS.includes(p.tokenAddress))
+      : [];
+
+    const addrs = solanaProfiles.slice(0, 10).map((p: any) => p.tokenAddress).join(',');
+    if (!addrs) return NextResponse.json({ success: true, opportunities: [] });
+
+    const resPairs = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addrs}`, {
+      cache: 'no-store',
+    });
+    const dataPairs = await resPairs.json();
+    const pairs = dataPairs.pairs || [];
 
     const opportunities = pairs
-      .filter((p: any) => 
-        p.chainId === 'solana' && 
-        p.baseToken?.address && 
-        !EXCLUDED_TOKENS.includes(p.baseToken.address) &&
-        (p.liquidity?.usd || 0) >= 1000
-      )
+      .filter((p: any) => p.chainId === 'solana' && !EXCLUDED_TOKENS.includes(p.baseToken?.address))
       .map((p: any) => {
         const liquidity = p.liquidity?.usd || 0;
         const volume = p.volume?.h24 || 0;
-        
         let score = 50;
-        if (liquidity >= 5000) score += 20;
-        if (volume >= 5000) score += 20;
+        if (liquidity >= 1000) score += 25;
+        if (volume >= 2000) score += 25;
 
         return {
           symbol: p.baseToken?.symbol || 'UNKNOWN',
           address: p.baseToken?.address,
-          pairAddress: p.pairAddress,
           score: Math.min(score, 100),
           liquidity: `$${liquidity.toLocaleString()}`,
           marketCap: `$${(p.fdv || 0).toLocaleString()}`,
@@ -43,7 +51,6 @@ export async function GET() {
           url: p.url,
         };
       })
-      .sort((a: any, b: any) => b.score - a.score)
       .slice(0, 6);
 
     return NextResponse.json({ success: true, opportunities });
