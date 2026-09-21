@@ -7,18 +7,28 @@ export default function ScannerPage() {
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('-');
   const [countdown, setCountdown] = useState<number>(10);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   const fetchTokens = async () => {
     setLoading(true);
+    setErrorMessage('');
     try {
-      const res = await fetch(`/api/scanner?t=${Date.now()}`);
+      const res = await fetch(`/api/scanner?t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
-      if (data.success && Array.isArray(data.tokens)) {
-        setTokens(data.tokens);
-        if (data.updatedAt) setLastUpdated(data.updatedAt);
+      
+      // Jam "Terakhir update" selalu diperbarui secara real-time
+      if (data.updatedAt) {
+        setLastUpdated(data.updatedAt);
       }
-    } catch (err) {
+
+      if (data.success && Array.isArray(data.tokens) && data.tokens.length > 0) {
+        setTokens(data.tokens);
+      } else if (data.error) {
+        setErrorMessage(data.error);
+      }
+    } catch (err: any) {
       console.error('Gagal memindai:', err);
+      setErrorMessage('Koneksi terputus ke server');
     } finally {
       setLoading(false);
       setCountdown(10);
@@ -50,7 +60,7 @@ export default function ScannerPage() {
         <div>
           <h1 className="text-2xl font-bold text-blue-400">Token Scanner</h1>
           <p className="text-xs text-gray-400 mt-1">
-            Pemindaian otomatis token & pergerakan harga pasar Solana
+            Pemindaian otomatis token & pergerakan pasar Solana
           </p>
         </div>
         <button 
@@ -63,16 +73,22 @@ export default function ScannerPage() {
 
       <div className="bg-gray-900/80 p-6 rounded-xl border border-gray-800 shadow-lg">
         {isScanning && (
-          <div className="flex justify-between items-center mb-6 bg-blue-950/40 p-3 rounded-lg border border-blue-800/50">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-6 bg-blue-950/40 p-3 rounded-lg border border-blue-800/50">
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
               <span className="text-xs text-blue-300 font-mono">
-                {loading ? 'Mengambil data pasar terbaru...' : `Scan ulang dalam ${countdown}s`}
+                {loading ? 'Mengambil data pasar...' : `Scan ulang dalam ${countdown}s`}
               </span>
             </div>
-            <span className="text-xs text-gray-400 font-mono">
-              Terakhir update: <strong className="text-white">{lastUpdated}</strong>
+            <span className="text-xs text-gray-300 font-mono">
+              Terakhir update: <strong className="text-green-400 font-bold">{lastUpdated}</strong>
             </span>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="mb-4 p-3 bg-red-950/50 border border-red-800 text-red-300 text-xs font-mono rounded">
+            ⚠️ Status API: {errorMessage}
           </div>
         )}
 
@@ -131,4 +147,5 @@ export default function ScannerPage() {
       </div>
     </div>
   );
-}
+      }
+        
