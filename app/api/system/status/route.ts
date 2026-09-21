@@ -11,8 +11,10 @@ export async function GET() {
     let walletBalanceSol = 0;
 
     try {
-      const version = await solanaConnection.getVersion();
-      if (version) rpcStatus = 'READY';
+      if (process.env.SOLANA_RPC_URL) {
+        const version = await solanaConnection.getVersion();
+        if (version) rpcStatus = 'READY';
+      }
     } catch (e) {}
 
     try {
