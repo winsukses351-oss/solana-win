@@ -9,7 +9,8 @@ export default function ScannerPage() {
   const fetchTokens = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/scanner');
+      // Parameter ?t= meyakinkan browser tidak memakai cache lama
+      const res = await fetch(`/api/scanner?t=${Date.now()}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.tokens)) {
         setTokens(data.tokens);
@@ -35,7 +36,7 @@ export default function ScannerPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-blue-400">Token Scanner</h1>
-          <p className="text-xs text-gray-400 mt-1">Pemindaian otomatis token Solana baru</p>
+          <p className="text-xs text-gray-400 mt-1">Pemindaian otomatis token Solana baru (Real-time)</p>
         </div>
         <button 
           onClick={() => setIsScanning(!isScanning)}
@@ -65,6 +66,7 @@ export default function ScannerPage() {
               <thead>
                 <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase font-mono">
                   <th className="pb-3">Token</th>
+                  <th className="pb-3">Umur</th>
                   <th className="pb-3">Harga</th>
                   <th className="pb-3">Alamat Kontrak</th>
                   <th className="pb-3 text-right">Aksi</th>
@@ -72,21 +74,26 @@ export default function ScannerPage() {
               </thead>
               <tbody className="divide-y divide-gray-800/50">
                 {tokens.map((token, idx) => {
-                  const addr = token.address || token.tokenAddress || '';
+                  const addr = token.address || '';
                   return (
                     <tr key={idx} className="hover:bg-gray-800/30 transition">
                       <td className="py-3 font-semibold text-blue-300">
-                        {token.symbol || 'UNKNOWN'}
+                        {token.symbol}
+                      </td>
+                      <td className="py-3 font-mono text-xs">
+                        <span className="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">
+                          {token.age}
+                        </span>
                       </td>
                       <td className="py-3 font-mono text-xs text-gray-300">
-                        {token.priceUsd || '$0'}
+                        {token.priceUsd}
                       </td>
                       <td className="py-3 font-mono text-xs text-gray-400">
                         {addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : 'N/A'}
                       </td>
                       <td className="py-3 text-right">
                         <a 
-                          href={token.url || '#'} 
+                          href={token.url} 
                           target="_blank" 
                           rel="noreferrer" 
                           className="px-3 py-1 bg-blue-600/20 text-blue-400 border border-blue-700/50 rounded text-xs hover:bg-blue-600/40 transition"
