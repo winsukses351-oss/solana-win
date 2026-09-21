@@ -1,44 +1,48 @@
 import { NextResponse } from 'next/server';
-import { solanaConnection } from '@/lib/solana/connection';
-import { getPublicKey } from '@/lib/solana/wallet';
-import { prisma } from '@/lib/database/db';
-import { PublicKey } from '@solana/web3.js';
+import { Connection, Keypair } from '@solana/web3.js';
+import bs58 from 'bs58';
 
 export async function GET() {
   try {
-    let rpcStatus = 'NOT CONFIGURED';
-    let walletStatus = 'NOT CONFIGURED';
-    let walletBalanceSol = 0;
+    // Membaca Environment Variables dari Vercel
+    const privateKey = process.env.SIGNER_PRIVATE_KEY;
+    const rpcUrl = process.env.RPC_URL || 'https://api.mainnet-beta.solana.com';
 
-    try {
-      if (process.env.SOLANA_RPC_URL) {
-        const version = await solanaConnection.getVersion();
-        if (version) rpcStatus = 'READY';
-      }
-    } catch (e) {}
+    let walletAddress = null;
+    let walletBalance = 0;
+    let walletStatus = 'KOSONG';
+    let rpcStatus = 'ERROR';
 
-    try {
-      const pubkey = getPublicKey();
-      if (pubkey) {
+    // Proses pengecekan dompet (Wallet)
+    if (privateKey) {
+      try {
+        // Menerjemahkan Private Key
+        const keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+        walletAddress = keypair.publicKey.toString();
         walletStatus = 'READY';
-        const publicKeyObj = new PublicKey(pubkey);
-        const bal = await solanaConnection.getBalance(publicKeyObj);
-        walletBalanceSol = (bal || 0) / 1e9;
+
+        // Menghubungkan ke Jaringan Solana & Cek Saldo
+        const connection = new Connection(rpcUrl, 'confirmed');
+        const balance = await connection.getBalance(keypair.publicKey);
+        walletBalance = balance / 1e9; // Konversi dari lamports ke SOL
+        rpcStatus = 'READY';
+      } catch (e) {
+        console.error("Gagal membaca wallet atau koneksi:", e);
+        walletStatus = 'ERROR_INVALID_KEY';
       }
-    } catch (e) {}
+    }
 
-    const settings = await prisma.settings.findUnique({ where: { id: 'default' } });
-
+    // Mengirimkan data kembali ke Dashboard
     return NextResponse.json({
-      network: 'SOLANA MAINNET',
-      rpcStatus,
-      walletStatus,
-      walletAddress: walletStatus === 'READY' ? getPublicKey() : null,
-      walletBalanceSol,
-      tradingStatus: settings?.tradingEnabled ? 'READY' : 'BLOCKED',
-      killSwitch: settings?.killSwitch || false
+      network: 'Solana Mainnet',
+      rpcStatus: rpcStatus,
+      tradingStatus: walletStatus === 'READY' ? 'READY' : 'BLOCKED',
+      walletStatus: walletStatus,
+      walletAddress: walletAddress,
+      walletBalanceSol: walletBalance,
     });
+    
   } catch (error) {
-    return NextResponse.json({ error: 'System check failed' }, { status: 500 });
+    return NextResponse.json({ error: 'System Error' }, { status: 500 });
   }
 }
