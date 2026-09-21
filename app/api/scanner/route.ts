@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+// PENTING: Paksa Vercel/Next.js agar API dijalankan REAL-TIME & TANPA CACHE
+export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const EXCLUDED_ADDRESSES = [
@@ -20,62 +22,57 @@ function formatAge(timestampMs: number | null): string {
 }
 
 export async function GET() {
+  const timeNow = new Date().toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
   try {
-    // Ambil data dari dua endpoint sekaligus untuk memperkaya variasi token
-    const [resLatest, resBoosts] = await Promise.allSettled([
-      fetch('https://api.dexscreener.com/token-profiles/latest/v1', { cache: 'no-store' }),
-      fetch('https://api.dexscreener.com/token-boosts/latest/v1', { cache: 'no-store' }),
-    ]);
-
-    let rawTokens: any[] = [];
-
-    if (resLatest.status === 'fulfilled' && resLatest.value.ok) {
-      const data = await resLatest.value.json();
-      if (Array.isArray(data)) rawTokens.push(...data);
-    }
-
-    if (resBoosts.status === 'fulfilled' && resBoosts.value.ok) {
-      const data = await resBoosts.value.json();
-      if (Array.isArray(data)) rawTokens.push(...data);
-    }
-
-    // Filter khusus jaringan Solana & buang alamat SOL/USDC/USDT
-    const solanaTokens = rawTokens.filter(
-      (t: any, index, self) =>
-        t.chainId === 'solana' &&
-        !EXCLUDED_ADDRESSES.includes(t.tokenAddress) &&
-        self.findIndex((item) => item.tokenAddress === t.tokenAddress) === index
-    );
-
-    const selectedAddresses = solanaTokens
-      .map((t: any) => t.tokenAddress)
-      .filter(Boolean)
-      .slice(0, 15)
-      .join(',');
-
-    const timeNow = new Date().toLocaleTimeString('id-ID');
-
-    if (!selectedAddresses) {
-      return NextResponse.json({ success: true, tokens: [], updatedAt: timeNow });
-    }
-
-    // Ambil detail harga dan pairCreatedAt terbaru
-    const pairsRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${selectedAddresses}`, {
+    const res = await fetch('https://api.dexscreener.com/token-profiles/latest/v1', {
       cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
     });
+
+    if (!res.ok) {
+      throw new Error(`DexScreener API Status: ${res.status}`);
+    }
+
+    const profiles = await res.json();
+    
+    const solanaProfiles = Array.isArray(profiles)
+      ? profiles.filter((p: any) => p.chainId === 'solana' && !EXCLUDED_ADDRESSES.includes(p.tokenAddress))
+      : [];
+
+    const addresses = solanaProfiles.slice(0, 15).map((p: any) => p.tokenAddress).join(',');
+
+    if (!addresses) {
+      return NextResponse.json({ success: true, updatedAt: timeNow, tokens: [] });
+    }
+
+    const pairsRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addresses}`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' },
+    });
+    
+    if (!pairsRes.ok) {
+      throw new Error(`DexScreener Pairs Status: ${pairsRes.status}`);
+    }
+
     const pairsData = await pairsRes.json();
     const pairs = pairsData.pairs || [];
 
-    const tokens = solanaTokens.slice(0, 15).map((profile: any) => {
+    const tokens = solanaProfiles.slice(0, 15).map((profile: any) => {
       const pair = pairs.find((p: any) => p.baseToken?.address === profile.tokenAddress) || {};
-      const createdAt = pair.pairCreatedAt || null;
-
       return {
-        symbol: pair.baseToken?.symbol || 'UNKNOWN',
+        symbol: pair.baseToken?.symbol || profile.tokenAddress.slice(0, 6),
         name: pair.baseToken?.name || 'Unknown Token',
         address: profile.tokenAddress,
         priceUsd: pair.priceUsd ? `$${parseFloat(pair.priceUsd).toFixed(6)}` : '$0',
-        age: formatAge(createdAt),
+        age: formatAge(pair.pairCreatedAt || null),
         url: pair.url || profile.url || `https://dexscreener.com/solana/${profile.tokenAddress}`,
       };
     });
@@ -86,9 +83,11 @@ export async function GET() {
       tokens,
     });
   } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message, tokens: [], updatedAt: new Date().toLocaleTimeString('id-ID') },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: false,
+      updatedAt: timeNow,
+      error: error.message || 'Gagal terhubung ke pasar',
+      tokens: [],
+    });
   }
 }
