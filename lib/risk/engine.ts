@@ -1,6 +1,7 @@
 import { prisma } from '../database/db';
 import { getPublicKey } from '../solana/wallet';
 import { solanaConnection } from '../solana/connection';
+import { PublicKey } from '@solana/web3.js';
 
 export async function runRiskChecks(tokenAddress: string, score: number, liquidityUsd: number, settings: any) {
   if (settings.killSwitch) {
@@ -36,8 +37,10 @@ export async function runRiskChecks(tokenAddress: string, score: number, liquidi
   }
 
   try {
-    const balance = await solanaConnection.getBalance(solanaConnection.getAccountInfo(getPublicKey()) as any);
-    if (balance === null) {
+    const pubkeyStr = getPublicKey();
+    const pubkeyObj = new PublicKey(pubkeyStr);
+    const balance = await solanaConnection.getBalance(pubkeyObj);
+    if (balance === null || balance === undefined) {
         return { passed: false, reason: 'BLOCKED: Could not fetch wallet balance' };
     }
   } catch (e) {
