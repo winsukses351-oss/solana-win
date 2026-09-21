@@ -6,10 +6,11 @@ export default function OpportunitiesPage() {
   const [loading, setLoading] = useState(true);
 
   const fetchOpportunities = async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/opportunities');
+      const res = await fetch(`/api/opportunities?t=${Date.now()}`);
       const data = await res.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.opportunities)) {
         setOpportunities(data.opportunities);
       }
     } catch (err) {
@@ -38,7 +39,7 @@ export default function OpportunitiesPage() {
           onClick={fetchOpportunities}
           className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-xs rounded border border-gray-700 transition"
         >
-          Refresh Data
+          {loading ? 'Memuat...' : 'Refresh Data'}
         </button>
       </div>
 
