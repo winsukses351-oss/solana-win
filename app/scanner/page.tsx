@@ -147,5 +147,4 @@ export default function ScannerPage() {
       </div>
     </div>
   );
-      }
-        
+}
