@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { solanaConnection } from '@/lib/solana/connection';
 import { getPublicKey } from '@/lib/solana/wallet';
 import { prisma } from '@/lib/database/db';
+import { PublicKey } from '@solana/web3.js';
 
 export async function GET() {
   try {
@@ -18,7 +19,8 @@ export async function GET() {
       const pubkey = getPublicKey();
       if (pubkey) {
         walletStatus = 'READY';
-        const bal = await solanaConnection.getBalance(solanaConnection.getAccountInfo(pubkey) as any);
+        const publicKeyObj = new PublicKey(pubkey);
+        const bal = await solanaConnection.getBalance(publicKeyObj);
         walletBalanceSol = (bal || 0) / 1e9;
       }
     } catch (e) {}
