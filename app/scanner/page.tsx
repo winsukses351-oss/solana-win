@@ -11,7 +11,7 @@ export default function ScannerPage() {
     try {
       const res = await fetch('/api/scanner');
       const data = await res.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.tokens)) {
         setTokens(data.tokens);
       }
     } catch (err) {
@@ -25,7 +25,6 @@ export default function ScannerPage() {
     let interval: any;
     if (isScanning) {
       fetchTokens();
-      // Melakukan pemindaian ulang setiap 10 detik
       interval = setInterval(fetchTokens, 10000);
     }
     return () => clearInterval(interval);
@@ -36,7 +35,7 @@ export default function ScannerPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-blue-400">Token Scanner</h1>
-          <p className="text-xs text-gray-400 mt-1">Pemindaian otomatis pool/token baru Solana</p>
+          <p className="text-xs text-gray-400 mt-1">Pemindaian otomatis token Solana baru</p>
         </div>
         <button 
           onClick={() => setIsScanning(!isScanning)}
@@ -66,36 +65,38 @@ export default function ScannerPage() {
               <thead>
                 <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase font-mono">
                   <th className="pb-3">Token</th>
-                  <th className="pb-3">Alamat Kontrak (Mint)</th>
-                  <th className="pb-3">Tautan</th>
+                  <th className="pb-3">Harga</th>
+                  <th className="pb-3">Alamat Kontrak</th>
                   <th className="pb-3 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/50">
-                {tokens.map((token, idx) => (
-                  <tr key={idx} className="hover:bg-gray-800/30 transition">
-                    <td className="py-3 font-semibold flex items-center gap-2">
-                      {token.icon && <img src={token.icon} alt="" className="w-5 h-5 rounded-full" />}
-                      <span className="text-blue-300">{token.tokenAddress.slice(0, 6)}...</span>
-                    </td>
-                    <td className="py-3 font-mono text-xs text-gray-400">{token.tokenAddress}</td>
-                    <td className="py-3 text-xs">
-                      <a 
-                        href={token.url} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="text-blue-400 hover:underline"
-                      >
-                        DexScreener ↗
-                      </a>
-                    </td>
-                    <td className="py-3 text-right">
-                      <button className="px-3 py-1 bg-green-600/20 text-green-400 border border-green-700/50 rounded text-xs hover:bg-green-600/40 transition">
-                        Analisis
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {tokens.map((token, idx) => {
+                  const addr = token.address || token.tokenAddress || '';
+                  return (
+                    <tr key={idx} className="hover:bg-gray-800/30 transition">
+                      <td className="py-3 font-semibold text-blue-300">
+                        {token.symbol || 'UNKNOWN'}
+                      </td>
+                      <td className="py-3 font-mono text-xs text-gray-300">
+                        {token.priceUsd || '$0'}
+                      </td>
+                      <td className="py-3 font-mono text-xs text-gray-400">
+                        {addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : 'N/A'}
+                      </td>
+                      <td className="py-3 text-right">
+                        <a 
+                          href={token.url || '#'} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="px-3 py-1 bg-blue-600/20 text-blue-400 border border-blue-700/50 rounded text-xs hover:bg-blue-600/40 transition"
+                        >
+                          DexScreener ↗
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
