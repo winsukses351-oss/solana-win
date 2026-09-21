@@ -38,6 +38,9 @@ export async function runRiskChecks(tokenAddress: string, score: number, liquidi
 
   try {
     const pubkeyStr = getPublicKey();
+    if (!pubkeyStr) {
+      return { passed: false, reason: 'BLOCKED: Wallet not configured' };
+    }
     const pubkeyObj = new PublicKey(pubkeyStr);
     const balance = await solanaConnection.getBalance(pubkeyObj);
     if (balance === null || balance === undefined) {
