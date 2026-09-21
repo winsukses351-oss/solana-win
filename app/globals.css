@@ -1,0 +1,32 @@
+/* 
+ * Image Metadata: Tangkapan layar log build Vercel yang menunjukkan error "Module not found: Can't resolve './globals.css'" pada file ./app/layout.tsx[span_0](start_span)[span_0](end_span). 
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-white antialiased;
+  }
+}
+
+/* Kustomisasi scrollbar untuk UI trading */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333333; 
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555555; 
+}
