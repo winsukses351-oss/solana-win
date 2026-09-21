@@ -4,6 +4,9 @@ import { env } from '../config/env';
 
 export const getSigner = (): Keypair => {
   try {
+    if (!env.SIGNER_PRIVATE_KEY) {
+      throw new Error('Private key not configured');
+    }
     const decoded = bs58.decode(env.SIGNER_PRIVATE_KEY);
     return Keypair.fromSecretKey(decoded);
   } catch (error) {
@@ -11,6 +14,11 @@ export const getSigner = (): Keypair => {
   }
 };
 
-export const getPublicKey = (): string => {
-  return getSigner().publicKey.toBase58();
+export const getPublicKey = (): string | null => {
+  try {
+    if (!env.SIGNER_PRIVATE_KEY) return null;
+    return getSigner().publicKey.toBase58();
+  } catch (error) {
+    return null;
+  }
 };
