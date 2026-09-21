@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-// Mematikan cache otomatis Next.js/Vercel agar data selalu segar
 export const revalidate = 0;
 
 const EXCLUDED_ADDRESSES = [
@@ -22,34 +21,52 @@ function formatAge(timestampMs: number | null): string {
 
 export async function GET() {
   try {
-    // Ambil token/pool profil terbaru di jaringan Solana
-    const response = await fetch('https://api.dexscreener.com/token-profiles/latest/v1', {
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache, no-store' },
-    });
+    // Ambil data dari dua endpoint sekaligus untuk memperkaya variasi token
+    const [resLatest, resBoosts] = await Promise.allSettled([
+      fetch('https://api.dexscreener.com/token-profiles/latest/v1', { cache: 'no-store' }),
+      fetch('https://api.dexscreener.com/token-boosts/latest/v1', { cache: 'no-store' }),
+    ]);
 
-    if (!response.ok) throw new Error('Gagal mengambil data dari DexScreener');
+    let rawTokens: any[] = [];
 
-    const profiles = await response.json();
-
-    const solanaProfiles = Array.isArray(profiles) 
-      ? profiles.filter((p: any) => p.chainId === 'solana' && !EXCLUDED_ADDRESSES.includes(p.tokenAddress))
-      : [];
-
-    const tokenAddresses = solanaProfiles.slice(0, 10).map((p: any) => p.tokenAddress).join(',');
-
-    if (!tokenAddresses) {
-      return NextResponse.json({ success: true, tokens: [] });
+    if (resLatest.status === 'fulfilled' && resLatest.value.ok) {
+      const data = await resLatest.value.json();
+      if (Array.isArray(data)) rawTokens.push(...data);
     }
 
-    // Ambil detail harga dan timestamp pembutan pair
-    const pairsRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddresses}`, {
+    if (resBoosts.status === 'fulfilled' && resBoosts.value.ok) {
+      const data = await resBoosts.value.json();
+      if (Array.isArray(data)) rawTokens.push(...data);
+    }
+
+    // Filter khusus jaringan Solana & buang alamat SOL/USDC/USDT
+    const solanaTokens = rawTokens.filter(
+      (t: any, index, self) =>
+        t.chainId === 'solana' &&
+        !EXCLUDED_ADDRESSES.includes(t.tokenAddress) &&
+        self.findIndex((item) => item.tokenAddress === t.tokenAddress) === index
+    );
+
+    const selectedAddresses = solanaTokens
+      .map((t: any) => t.tokenAddress)
+      .filter(Boolean)
+      .slice(0, 15)
+      .join(',');
+
+    const timeNow = new Date().toLocaleTimeString('id-ID');
+
+    if (!selectedAddresses) {
+      return NextResponse.json({ success: true, tokens: [], updatedAt: timeNow });
+    }
+
+    // Ambil detail harga dan pairCreatedAt terbaru
+    const pairsRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${selectedAddresses}`, {
       cache: 'no-store',
     });
     const pairsData = await pairsRes.json();
     const pairs = pairsData.pairs || [];
 
-    const tokens = solanaProfiles.slice(0, 10).map((profile: any) => {
+    const tokens = solanaTokens.slice(0, 15).map((profile: any) => {
       const pair = pairs.find((p: any) => p.baseToken?.address === profile.tokenAddress) || {};
       const createdAt = pair.pairCreatedAt || null;
 
@@ -63,8 +80,15 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ success: true, tokens });
+    return NextResponse.json({
+      success: true,
+      updatedAt: timeNow,
+      tokens,
+    });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message, tokens: [] }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message, tokens: [], updatedAt: new Date().toLocaleTimeString('id-ID') },
+      { status: 500 }
+    );
   }
 }
