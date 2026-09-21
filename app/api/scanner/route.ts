@@ -1,43 +1,69 @@
 import { NextResponse } from 'next/server';
 
+// Mematikan cache otomatis Next.js/Vercel agar data selalu segar
+export const revalidate = 0;
+
+const EXCLUDED_ADDRESSES = [
+  'So11111111111111111111111111111111111111112', // SOL
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
+];
+
+function formatAge(timestampMs: number | null): string {
+  if (!timestampMs) return 'N/A';
+  const diffMinutes = Math.floor((Date.now() - timestampMs) / (1000 * 60));
+  if (diffMinutes < 1) return '< 1m';
+  if (diffMinutes < 60) return `${diffMinutes}m`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d`;
+}
+
 export async function GET() {
   try {
-    const response = await fetch('https://api.dexscreener.com/latest/dex/search?q=solana', {
-      headers: { 'Cache-Control': 'no-cache' },
+    // Ambil token/pool profil terbaru di jaringan Solana
+    const response = await fetch('https://api.dexscreener.com/token-profiles/latest/v1', {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store' },
     });
 
-    if (!response.ok) throw new Error('Gagal mengambil data pasar');
+    if (!response.ok) throw new Error('Gagal mengambil data dari DexScreener');
 
-    const data = await response.json();
-    const pairs = data.pairs || [];
+    const profiles = await response.json();
 
-    const solanaPairs = pairs
-      .filter((p: any) => p.chainId === 'solana' && p.liquidity?.usd)
-      .map((p: any) => {
-        const liquidity = p.liquidity?.usd || 0;
-        const volume24h = p.volume?.h24 || 0;
-        
-        let score = 50;
-        if (liquidity > 10000) score += 20;
-        if (liquidity > 50000) score += 15;
-        if (volume24h > 5000) score += 15;
+    const solanaProfiles = Array.isArray(profiles) 
+      ? profiles.filter((p: any) => p.chainId === 'solana' && !EXCLUDED_ADDRESSES.includes(p.tokenAddress))
+      : [];
 
-        return {
-          id: p.pairAddress,
-          symbol: p.baseToken?.symbol || 'UNKNOWN',
-          name: p.baseToken?.name || 'Unknown Token',
-          address: p.baseToken?.address,
-          pairAddress: p.pairAddress,
-          priceUsd: p.priceUsd ? `$${parseFloat(p.priceUsd).toFixed(6)}` : '$0',
-          liquidityUsd: liquidity,
-          volume24h: volume24h,
-          score: Math.min(score, 100),
-          url: p.url,
-        };
-      })
-      .slice(0, 10);
+    const tokenAddresses = solanaProfiles.slice(0, 10).map((p: any) => p.tokenAddress).join(',');
 
-    return NextResponse.json({ success: true, tokens: solanaPairs });
+    if (!tokenAddresses) {
+      return NextResponse.json({ success: true, tokens: [] });
+    }
+
+    // Ambil detail harga dan timestamp pembutan pair
+    const pairsRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddresses}`, {
+      cache: 'no-store',
+    });
+    const pairsData = await pairsRes.json();
+    const pairs = pairsData.pairs || [];
+
+    const tokens = solanaProfiles.slice(0, 10).map((profile: any) => {
+      const pair = pairs.find((p: any) => p.baseToken?.address === profile.tokenAddress) || {};
+      const createdAt = pair.pairCreatedAt || null;
+
+      return {
+        symbol: pair.baseToken?.symbol || 'UNKNOWN',
+        name: pair.baseToken?.name || 'Unknown Token',
+        address: profile.tokenAddress,
+        priceUsd: pair.priceUsd ? `$${parseFloat(pair.priceUsd).toFixed(6)}` : '$0',
+        age: formatAge(createdAt),
+        url: pair.url || profile.url || `https://dexscreener.com/solana/${profile.tokenAddress}`,
+      };
+    });
+
+    return NextResponse.json({ success: true, tokens });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message, tokens: [] }, { status: 500 });
   }
