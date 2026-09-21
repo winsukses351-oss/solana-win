@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Settings {
+  id                     String   @id @default("default")
+  tradingEnabled         Boolean  @default(false)
+  compoundingEnabled     Boolean  @default(true)
+  startingCapitalUsd     Float    @default(10.0)
+  riskPerTradePercent    Float    @default(1.0)
+  maxPositionPercent     Float    @default(10.0)
+  maxDailyLossPercent    Float    @default(3.0)
+  maxPositionUsd         Float?
+  maxDailyLossUsd        Float?
+  maxOpenPositions       Int      @default(2)
+  minLiquidityUsd        Float    @default(10000.0)
+  minScore               Float    @default(80.0)
+  stopLossPercent        Float    @default(15.0)
+  takeProfitPercent      Float    @default(50.0)
+  maxSlippagePercent     Float    @default(1.0)
+  killSwitch             Boolean  @default(false)
+  updatedAt              DateTime @updatedAt
+}
+
+model Token {
+  address       String   @id
+  symbol        String
+  name          String
+  decimals      Int
+  liquidityUsd  Float
+  marketCapUsd  Float?
+  lastScannedAt DateTime @default(now())
+  opportunities Opportunity[]
+  positions     Position[]
+  trades        Trade[]
+}
+
+model Opportunity {
+  id             String   @id @default(uuid())
+  tokenAddress   String
+  token          Token    @relation(fields: [tokenAddress], references: [address])
+  priceUsd       Float
+  score          Float
+  strategies     Json     
+  riskStatus     String   
+  signalReasons  Json
+  timestamp      DateTime @default(now())
+}
+
+model Position {
+  id             String   @id @default(uuid())
+  tokenAddress   String
+  token          Token    @relation(fields: [tokenAddress], references: [address])
+  status         String   
+  entryPriceUsd  Float
+  sizeUsd        Float
+  sizeTokens     Float
+  unrealizedPnl  Float    @default(0)
+  openedAt       DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Trade {
+  id             String   @id @default(uuid())
+  tokenAddress   String
+  token          Token    @relation(fields: [tokenAddress], references: [address])
+  side           String   
+  priceUsd       Float
+  sizeUsd        Float
+  sizeTokens     Float
+  feesUsd        Float?
+  pnlUsd         Float?
+  signature      String   @unique
+  status         String   
+  timestamp      DateTime @default(now())
+}
+
+model RiskEvent {
+  id             String   @id @default(uuid())
+  level          String
+  message        String
+  metadata       Json?
+  timestamp      DateTime @default(now())
+}
