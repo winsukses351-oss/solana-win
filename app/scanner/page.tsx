@@ -5,30 +5,43 @@ export default function ScannerPage() {
   const [isScanning, setIsScanning] = useState(true);
   const [tokens, setTokens] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>('-');
+  const [countdown, setCountdown] = useState<number>(10);
 
   const fetchTokens = async () => {
     setLoading(true);
     try {
-      // Parameter ?t= meyakinkan browser tidak memakai cache lama
       const res = await fetch(`/api/scanner?t=${Date.now()}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.tokens)) {
         setTokens(data.tokens);
+        if (data.updatedAt) setLastUpdated(data.updatedAt);
       }
     } catch (err) {
       console.error('Gagal memindai:', err);
     } finally {
       setLoading(false);
+      setCountdown(10);
     }
   };
 
   useEffect(() => {
     let interval: any;
+    let timer: any;
+
     if (isScanning) {
       fetchTokens();
       interval = setInterval(fetchTokens, 10000);
+
+      timer = setInterval(() => {
+        setCountdown((prev) => (prev > 1 ? prev - 1 : 10));
+      }, 1000);
     }
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(timer);
+    };
   }, [isScanning]);
 
   return (
@@ -36,7 +49,9 @@ export default function ScannerPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-blue-400">Token Scanner</h1>
-          <p className="text-xs text-gray-400 mt-1">Pemindaian otomatis token Solana baru (Real-time)</p>
+          <p className="text-xs text-gray-400 mt-1">
+            Pemindaian otomatis token & pergerakan harga pasar Solana
+          </p>
         </div>
         <button 
           onClick={() => setIsScanning(!isScanning)}
@@ -48,17 +63,22 @@ export default function ScannerPage() {
 
       <div className="bg-gray-900/80 p-6 rounded-xl border border-gray-800 shadow-lg">
         {isScanning && (
-          <div className="flex items-center gap-3 mb-6 bg-blue-950/40 p-3 rounded-lg border border-blue-800/50">
-            <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-xs text-blue-300 font-mono">
-              {loading ? 'Memuat token terbaru...' : 'Scanner aktif — Memindai setiap 10 detik'}
+          <div className="flex justify-between items-center mb-6 bg-blue-950/40 p-3 rounded-lg border border-blue-800/50">
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-xs text-blue-300 font-mono">
+                {loading ? 'Mengambil data pasar terbaru...' : `Scan ulang dalam ${countdown}s`}
+              </span>
+            </div>
+            <span className="text-xs text-gray-400 font-mono">
+              Terakhir update: <strong className="text-white">{lastUpdated}</strong>
             </span>
           </div>
         )}
 
         {tokens.length === 0 ? (
           <div className="text-center py-12 text-gray-500 font-mono text-sm">
-            {isScanning ? 'Mencari token baru...' : 'Scanner nonaktif. Klik "Mulai Memindai".'}
+            {isScanning ? 'Mencari token...' : 'Scanner nonaktif. Klik "Mulai Memindai".'}
           </div>
         ) : (
           <div className="overflow-x-auto">
